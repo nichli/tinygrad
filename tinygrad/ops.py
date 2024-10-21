@@ -41,6 +41,10 @@ class MathTrait:
   def alu(self:T, arg:Union[UnaryOps, BinaryOps, TernaryOps], *src) -> T: raise NotImplementedError
   def const_like(self, b:ConstType|Variable|Tuple[ConstType]): raise NotImplementedError
 
+  # --- MY NOTES ---
+  # __neg__ method:
+  # * scalar() typically just returns itself, which is a DType object (see DType class in dtype.py for more info on what scalar() can return)
+  # ----------------
   # great functions you get!
   def ufix(self, x): return self.const_like(x) if not isinstance(x, MathTrait) else x
   def logical_not(self): return self.ne(True)

@@ -137,6 +137,9 @@ class LazyBuffer(MathTrait):
     # copy the base and apply the shapetracker on the new device
     return self.base._copy(device)._view(self.st)
 
+  # --- MY NOTES ---
+  # I believe it would be better for in_srcs to have the type hint "Tuple[LazyBuffer, ...]", but it probably doesn't matter
+  # ----------------
   def alu(self, op:Union[MetaOps, UnaryOps, BinaryOps, TernaryOps], *in_srcs:LazyBuffer) -> LazyBuffer:
     srcs: List[LazyBuffer] = []
     for s in (self,)+in_srcs:

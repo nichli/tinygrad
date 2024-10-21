@@ -109,6 +109,13 @@ USE_TC, TC_OPT, AMX, TRANSCENDENTAL = ContextVar("TC", 1), ContextVar("TC_OPT", 
 FUSE_ARANGE, FUSE_CONV_BW = ContextVar("FUSE_ARANGE", 0), ContextVar("FUSE_CONV_BW", 0)
 SPLIT_REDUCEOP, NO_MEMORY_PLANNER, RING = ContextVar("SPLIT_REDUCEOP", 1), ContextVar("NO_MEMORY_PLANNER", 0), ContextVar("RING", 1)
 
+# --- MY NOTES ---
+# TODO: figure out where Metadata class is used
+# _METADATA is a contextvars.ContextVar with name attribute="_METADATA" (this is different from the variable's identifier) and default value="None"
+# * afaict, contextvars.ContextVar objects mainly allow us to access the object's data in functions (in the same context as where we set the ContextVar) w/out explicitly passing the object
+# * the type hint tells us the value of _METADATA will either be a Metadata or None
+# * NOTE: contextvars.ContextVar is not the same as the ContextVar class defined above
+# ---------------
 @dataclass(frozen=True)
 class Metadata:
   name: str

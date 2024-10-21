@@ -19,6 +19,14 @@ from tinygrad.engine.schedule import ScheduleItem, create_schedule_with_vars
 # **** start with two base classes, Tensor and Function ****
 
 class Function:
+  # --- MY NOTES ---
+  # I think the purpose of these attributes is to help us correctly create new Tensors that result from a function
+  # * requires_grad:
+  #   * True if any of the input Tensors has requires_grad=True, None if any of the input Tensors has requires_grad=None, and False otherwise
+  # * parents
+  #   * it seems that the function objects keep track of the parents of a Tensor, the Tensor object itself doesn't keep track of this
+  #   * NOTE: this attribute won't exist if requires_grad is False (you can't even access it)
+  # ----------------
   def __init__(self, device:Union[str, Tuple[str, ...]], *tensors:Tensor, metadata:Optional[Metadata]=None):
     self.device = device
     self.needs_input_grad = [t.requires_grad for t in tensors]
@@ -26,9 +34,23 @@ class Function:
     if self.requires_grad: self.parents = tensors
     self.metadata = metadata
 
+  # --- MY NOTES ---
+  # all forward and backward methods seem to operate at the level of LazyBuffers (LazyBuffers are the inputs and outputs)
+  # ----------------
   def forward(self, *args, **kwargs): raise NotImplementedError(f"forward not implemented for {type(self)}")
   def backward(self, *args, **kwargs): raise RuntimeError(f"backward not implemented for {type(self)}")
 
+  # --- MY NOTES ---
+  # _METADATA is a contextvars.ContextVar, meaning that .get() will return a Metadata object if _METADATA has been .set() to one (or None if not set)
+  # * TODO: find out where _METADATA has its value set
+  #
+  # NOTE: with classmethods, the class of the object instance is implicitly passed as the first arg, which is what "fxn" is
+  # Understanding the apply method:
+  # * how it's used:
+  #   * call the version of this method belonging to the function class we want to apply (e.g. if we want to do Add, call F.Add.apply), this makes sure we use the right "fxn" 
+  # * how it works:
+  #   * we create a object of that function class that contains all the attributes/methods we need (device, grad stuff, forward pass, etc.) to create the resulting Tensor
+  # ----------------
   @classmethod
   def apply(fxn:Type[Function], *x:Tensor, **kwargs) -> Tensor:
     ctx = fxn(x[0].device, *x, metadata=_METADATA.get())
@@ -2732,6 +2754,17 @@ class Tensor:
 
   def _broadcasted(self, y:Union[Tensor, UOp, ConstType], reverse:bool=False, match_dtype:bool=True) -> Tuple[Tensor, Tensor]:
     x: Tensor = self
+
+    # --- MY NOTES ---
+    # before broadcasting, we need to make sure y is a Tensor, if it isn't:
+    # 1. we make sure it's either a ConstType (float, int, bool) or a UOp, NOTE: get_args(ConstType) without '*' would be isinstance(y, ((float, int, bool), UOp)), with it it is (float, int, bool, UOp)
+    # 2. if y is not a UOp, we need to find what its dtype should be:
+    #   * if x.dtype is ImageDType | x.dtype is float | x is an int Tensor and y is a Python int (or bool), the new Tensor of y will have same dtype as x
+    #   * if none of the previous 3 statements are True, and y is not an UOp (NOTE: not sure how this would be possible, as the previous assert should catch anything that fits this criteria), call dtypes.from_py to find the correct dtype
+    # 3. at this point, we should know what the new Tensor's dtype should be (we don't need to explicilty find this if y is a UOp)
+    # 4. if y is a UOp,  we simply call Tensor.from_uop to create a new Tensor of the right dtype 
+    # 5. else (y is not a UOp but we know what the correct dtype should be), we create a new Tensor of the right dtype
+    # ----------------
     if not isinstance(y, Tensor):
       # make y a Tensor
       assert isinstance(y, (*get_args(ConstType), UOp)), f"{type(y)=}, {y=}"
@@ -2739,7 +2772,7 @@ class Tensor:
       elif not isinstance(y, UOp): y_dtype = dtypes.from_py(y)
       if isinstance(y, UOp): y = Tensor.from_uop(y, device=x.device)
       else: y = Tensor(dtypes.as_const(y, y_dtype), x.device, y_dtype, requires_grad=False)
-
+    
     if match_dtype and x.dtype != y.dtype:
       output_dtype = least_upper_dtype(x.dtype, y.dtype)
       x, y = x.cast(output_dtype), y.cast(output_dtype)
@@ -2754,6 +2787,10 @@ class Tensor:
     return x.lazydata.base.arg if isinstance(x, Tensor) and isinstance(x.lazydata, LazyBuffer) and x.lazydata.is_unrealized_unmasked_const() \
       and not x.requires_grad and self._broadcasted(x)[0].shape == self.shape else x
 
+  # --- MY NOTES ---
+  # this function is just broadcasting the input tensors if necessary and applying the Add function with those tensors as args
+  # NOTE: self._broadcasted returns a tuple, so the "*" unpacks this tuple to make each element their own arg in the apply function
+  # ----------------
   def add(self, x:Union[Tensor, ConstType], reverse=False) -> Tensor:
     """
     Adds `self` and `x`.
