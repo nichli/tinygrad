@@ -6,6 +6,10 @@ from tinygrad.helpers import getenv
 
 ConstType = Union[float, int, bool]
 
+# --- MY NOTES ----
+# scalar method:
+# * not sure when count will ever be greater than 1, so this method seems to typically just return self
+# -----------------
 @dataclass(frozen=True, order=True)
 class DType:
   priority: int  # this determines when things get upcasted
@@ -42,6 +46,9 @@ class PtrDType(DType):
   def __ne__(self, dt): return not (self == dt)
   def __repr__(self): return f"{super().__repr__()}.ptr(local=True)" if self.local else f"{super().__repr__()}.ptr()"
 
+# --- MY NOTES ---
+# @functools.lru_cache(None) will create a dict that maps a set of input args to their return val, so if the function is called again with the same args, it can instantly return the cached value
+# ----------------
 class dtypes:
   @staticmethod
   @functools.lru_cache(None)
@@ -140,6 +147,11 @@ def least_upper_dtype(*ds:DType) -> DType:
   return min(set.intersection(*[_get_recursive_parents(d) for d in ds])) if not (images:=[d for d in ds if isinstance(d, ImageDType)]) else images[0]
 def least_upper_float(dt:DType) -> DType: return dt if dtypes.is_float(dt) else least_upper_dtype(dt, dtypes.float32)
 
+# --- MY NOTES ---
+# creating DTYPES_DICT (dictionary containing all the real dtypes):
+# * dtypes.__dict__ returns a dictionary of all the attributes/methods of dtypes class, where key is its name (string) and value is the attribute/method
+# * we want to throw away all of the class/special methods and attributes that are tuples, so that we are left with all the "real" dtypes
+# ----------------
 # HACK: staticmethods are not callable in 3.8 so we have to compare the class
 DTYPES_DICT = {k: v for k, v in dtypes.__dict__.items() if not (k.startswith(('__', 'default', 'void'))
                                                                 or v.__class__ is staticmethod or isinstance(v, tuple))}
